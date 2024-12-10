@@ -60,6 +60,8 @@ class MotorControlNode(Node):
 
 
     def send_can_messages(self):
+        # uncomment brake message bij echt karte
+        
         # brk_msg = can.Message(arbitration_id=0x110, data=[self.brake, 0, 0, 0, 0, 0, 0, 0], is_extended_id=False)
         steering_msg = can.Message(arbitration_id=0x220, data=list(bytearray(struct.pack("f", self.steering))) + [0, 0, 0, 0], is_extended_id=False)
         acc_msg = can.Message(arbitration_id=0x330, data=[self.throttle, 0, self.direction, 0, 0, 0, 0, 0], is_extended_id=False)
