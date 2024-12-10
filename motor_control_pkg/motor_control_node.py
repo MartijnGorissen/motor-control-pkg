@@ -1,26 +1,22 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float32, Int32
+from std_msgs.msg import Float32, Int32, Bool
 from my_robot_interfaces.msg import BesturingsData
 import can
 import struct
 from geometry_msgs.msg import Twist
 
+
 class MotorControlNode(Node):
     def __init__(self):
         super().__init__('motor_control_node')
 
-        self.bus = can.Bus(interface='socketcan', channel='can0', bitrate=500000)
-            
-        # self.create_subscription(Float32, 'throttle', self.update_throttle, 10)
-        # self.create_subscription(Float32, 'steering', self.update_steering, 10)
-        # self.create_subscription(Int32, 'direction', self.update_direction, 10)
-        # self.create_subscription(Float32, 'brake', self.update_brake, 10)
+        self.bus = can.Bus(interface='socketcan', channel='can0', bitrate=500000)         
 
         # Subscribers voor de BesturingsData message
         self.BesturingsData_subscription = self.create_subscription(BesturingsData, 'besturings_data', self.motor_control_callback, 10)
 
-        # subscriber voor nav2 topic
+        # subscriber voor navigatie stuurcommando
         self.twist_subscription = self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_callback, 10)
 
         self.throttle = 0
@@ -37,20 +33,9 @@ class MotorControlNode(Node):
         self.direction = msg.direction
         
 
-
-    def update_throttle():
-        return
-
-    def update_steering():
-        return
-
-    def update_direction():
-        return
-    
-    def update_brake():
-        return
-    
     def cmd_vel_callback(self, msg: Twist):
+        # functie voor het omzetten van /cmd_vel naar data die geschikt is voor de motor
+
         # Maximale snelheid en stuurhoek
         max_speed = 2.78  # Maximale snelheid in m/s (10km/h)
         max_steering_angle = 45.0  # Maximale stuurhoek in graden
@@ -72,16 +57,14 @@ class MotorControlNode(Node):
         self.steering = steering_angle_deg / max_steering_angle  # Normaliseer naar -1 tot 1
 
         print(f"Throttle: {self.throttle}, Steering: {self.steering}, Direction {self.direction}")
-    
 
 
     def send_can_messages(self):
-        brk_msg = can.Message(arbitration_id=0x110, data=[self.brake, 0, 0, 0, 0, 0, 0, 0], is_extended_id=False)
-        # steering_msg = can.Message(arbitration_id=0x220, data=list(bytearray(struct.pack("f", self.steering))) + [0, 0, 195, 0], is_extended_id=False)
+        # brk_msg = can.Message(arbitration_id=0x110, data=[self.brake, 0, 0, 0, 0, 0, 0, 0], is_extended_id=False)
         steering_msg = can.Message(arbitration_id=0x220, data=list(bytearray(struct.pack("f", self.steering))) + [0, 0, 0, 0], is_extended_id=False)
         acc_msg = can.Message(arbitration_id=0x330, data=[self.throttle, 0, self.direction, 0, 0, 0, 0, 0], is_extended_id=False)
         
-        self.bus.send(brk_msg)
+        # self.bus.send(brk_msg)
         self.bus.send(steering_msg)
         self.bus.send(acc_msg)
         
