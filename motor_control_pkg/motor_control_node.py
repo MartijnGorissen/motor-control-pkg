@@ -5,6 +5,7 @@ from my_robot_interfaces.msg import BesturingsData
 import can
 import struct
 from geometry_msgs.msg import Twist
+import math
 
 
 class MotorControlNode(Node):
@@ -37,8 +38,7 @@ class MotorControlNode(Node):
         # functie voor het omzetten van /cmd_vel naar data die geschikt is voor de motor
 
         # Maximale snelheid en stuurhoek
-        max_speed = 2.78  # Maximale snelheid in m/s (10km/h)
-        max_steering_angle = 45.0  # Maximale stuurhoek in graden
+        max_speed = 1
 
         # Controleer de richting en pas throttle aan
         if msg.linear.x < 0:
@@ -48,13 +48,63 @@ class MotorControlNode(Node):
             self.direction = 1  # Vooruit
             linear_speed = msg.linear.x
 
-        # Zet lineaire snelheid om naar throttle (0-100)
-        self.throttle = int(max(0.0, min(100.0, (linear_speed / max_speed) * 100.0)))
+        # Zet lineaire snelheid om naar throttle (0-100) NIET AAN DE VERSNELLING KOMEN (CAN module op de kart)
+        # kart begint met rijden bij ongeveer 75-80% throttle
+        self.throttle = int(max(80.0, min(90.0, (linear_speed / max_speed) * 100.0)))
 
-        # Zet hoeksnelheid om naar stuurhoek (-1 tot 1)
-        steering_angle_deg = msg.angular.z / max_speed * max_steering_angle
-        steering_angle_deg = max(-max_steering_angle, min(max_steering_angle, steering_angle_deg))  # Begrens tot ±45 graden
-        self.steering = steering_angle_deg / max_steering_angle  # Normaliseer naar -1 tot 1
+        # angular.z is in rad/s, dit moet opgezet worden naar een stuurhoek (ackermann)
+
+        # θ (theta) = gewenste stuurhoek van de voorwielen (in radians)
+        # ω = angular.z (in rad/s)
+        # v = linear.x (in m/s)
+        # wielbasis = 0,31 m
+        # θ = arctan (ω * wielbasis / v)
+
+        # maximale stuurhoek wielen 45∘ (-1.25(links) : 1.25(rechts))
+        # 1.25 / 45 ≈ 0.0278
+
+        # voorbeeld:
+        # ω = 0.5 rad/s 
+        # v = 1.0 m/s
+        # θ = arctan (0.5 * 0.31 / 1) = arctan (0.155 ) ≈ 0.1549 rad ≈ 8.9∘
+        # dus θ = 8.9∘
+        # dat schalen naar met het CAN waardes
+        # CAN waarde = 8.9∘ * 0.0278 ≈ 0.2475
+
+        # definieer constante
+        WHEELBASE = 0.31 # afstand tussen de wielen
+        MAX_ANGLE_DEG = 45 
+        MAX_CAN_ANGLE = 1.25
+        CAN_PER_DEG = MAX_CAN_ANGLE / MAX_ANGLE_DEG
+
+        # als de linear.x (snelheid) is heel klein is kan dit problemen veroorzakan (bijvoorbeeld delen door 0)
+        if abs(msg.linear.x) < 1e-5:
+            # auto staat (bijna) stil, stuurhoek direct afhankelijk van angular.x
+            # verschillende opties, default stuurhoek of geen stuurhoek
+
+            # bij stil staan maximale stuurhoek (verander naar keuze/preferentie)
+            # theta = math.copysign(math.radians(MAX_ANGLE_DEG), msg.angular.z)
+
+            # niet sturen bij stil staan
+            theta = 0
+        else:
+            # berekenen stuurhoek achkermann steering
+            theta = math.atan((msg.angular.z * WHEELBASE) / msg.linear.x)
+
+        # beperk stuurhoek tot de maximale hoek
+        max_angle_rad = math.radians(MAX_ANGLE_DEG)
+        if theta > max_angle_rad:
+            theta = max_angle_rad
+        elif theta < -max_angle_rad:
+            theta = -max_angle_rad
+
+        # rad -> gaden
+        angle_deg = math.degrees(theta)
+
+        # graden -> stuurwaarde (CAN) (45graden = 1.25)
+        # inverteer de waarde want angular.z(positief) is naar links. 
+        # om de auto naar links te laten sturen is dit negatief bij ons. dus -angle_deg
+        self.steering = -angle_deg * CAN_PER_DEG
 
         print(f"Throttle: {self.throttle}, Steering: {self.steering}, Direction {self.direction}")
 
