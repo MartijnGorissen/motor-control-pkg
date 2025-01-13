@@ -48,9 +48,9 @@ class MotorControlNode(Node):
             self.direction = 1  # Vooruit
             linear_speed = msg.linear.x
 
-        # Zet lineaire snelheid om naar throttle (0-100) NIET AAN DE VERSNELLING KOMEN (CAN module op de kart)
+        # Zet lineaire snelheid om naar throttle (0-100) PAS OP met het instellen van de versnelling
         # kart begint met rijden bij ongeveer 75-80% throttle
-        self.throttle = int(max(80.0, min(90.0, (linear_speed / max_speed) * 100.0)))
+        self.throttle = int(max(0.0, min(100.0, (linear_speed / max_speed) * 100.0)))
 
         # angular.z is in rad/s, dit moet opgezet worden naar een stuurhoek (ackermann)
 
