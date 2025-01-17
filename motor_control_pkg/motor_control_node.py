@@ -20,10 +20,15 @@ class MotorControlNode(Node):
         # subscriber voor navigatie stuurcommando
         self.twist_subscription = self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_callback, 10)
 
+        # subscriber voor navigatie mode
+        self.nav_mode_subscription = self.create_subscription(Bool, '/nav_mode', self.nav_mode_callback, 10)
+
         self.throttle = 0
         self.steering = 0
         self.direction = 0
         self.brake = 0
+
+        self.nav_mode = False
 
         self.timer = self.create_timer(0.04, self.send_can_messages)
 
@@ -33,8 +38,13 @@ class MotorControlNode(Node):
         self.steering = msg.steering
         self.direction = msg.direction
         
+    def nav_mode_callback(self, msg: Bool):
+        self.nav_mode = msg.data
 
     def cmd_vel_callback(self, msg: Twist):
+        if not self.nav_mode:
+            return
+
         # functie voor het omzetten van /cmd_vel naar data die geschikt is voor de motor
 
         # Maximale snelheid en stuurhoek
